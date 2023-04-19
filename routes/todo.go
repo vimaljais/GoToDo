@@ -8,6 +8,7 @@ import (
 	"time"
 
 	db "ginserver/config"
+	"ginserver/middlewares"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -31,6 +32,7 @@ type ToUpdateNote struct {
 
 func Todo(r *gin.Engine) {
 	todo := r.Group("/todo")
+	todo.Use(middlewares.AuthMiddleware())
 	{
 		todo.POST("/create", func(c *gin.Context) {
 			var req Note

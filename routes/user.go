@@ -2,8 +2,10 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	db "ginserver/config"
+	"ginserver/middlewares"
 	"net/http"
 	"time"
 
@@ -27,8 +29,23 @@ type ResponseUser struct {
 	Username string `json:"username"`
 }
 
+// print the contents of the obj
+func PrettyPrint(data interface{}) {
+	var p []byte
+	//    var err := error
+	p, err := json.MarshalIndent(data, "", "\t")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Printf("%s \n", p)
+}
+
 func UserRoutes(r *gin.Engine) {
+
 	user := r.Group("/user")
+	user.Use(middlewares.AuthMiddleware())
+
 	{
 		user.GET("/", func(c *gin.Context) {
 			c.JSON(200, gin.H{
@@ -65,11 +82,46 @@ func UserRoutes(r *gin.Engine) {
 			c.JSON(http.StatusOK, resUsers)
 		})
 
+		user.DELETE("/delete", func(c *gin.Context) {
+			// get user ID from the path parameter
+			user_id := c.GetString("user_id")
+
+			// get the collection from the database
+			collection := db.Client.Database("todo").Collection("users")
+
+			// delete the user with the specified ID
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			result, err := collection.UpdateOne(ctx, bson.M{"id": user_id},
+				bson.M{"$set": bson.M{"deleted": true}})
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error":   "SERVER-1",
+					"message": "Failed to delete user",
+				})
+				return
+			}
+
+			// check if the user was found and deleted
+			if result.ModifiedCount == 0 {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error":   "USER-1",
+					"message": "User not found",
+				})
+				return
+			}
+
+			// return success response
+			c.JSON(http.StatusOK, gin.H{
+				"message": "User deleted successfully",
+			})
+
+		})
+
 		user.POST("/change-password", func(c *gin.Context) {
 			// Get username and old and new passwords from request
 
 			var req struct {
-				Username    string `json:"username" binding:"required"`
 				OldPassword string `json:"old_password" binding:"required"`
 				NewPassword string `json:"new_password" binding:"required"`
 			}
@@ -78,13 +130,12 @@ func UserRoutes(r *gin.Engine) {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "BAD_REQUEST", "message": err.Error()})
 				return
 			}
-			fmt.Print(req)
 
 			// Find user in database
 			collection := db.Client.Database("todo").Collection("users")
 			var user User
 			err := collection.FindOne(context.TODO(), bson.D{
-				{Key: "username", Value: req.Username},
+				{Key: "id", Value: c.GetString("user_id")},
 			}).Decode(&user)
 
 			// Check if user exists
@@ -117,7 +168,7 @@ func UserRoutes(r *gin.Engine) {
 
 			// Update user's password in database
 			_, err = collection.UpdateOne(context.TODO(), bson.D{
-				{Key: "username", Value: req.Username},
+				{Key: "username", Value: c.GetString("username")},
 			}, bson.D{
 				{Key: "$set", Value: bson.D{
 					{Key: "password", Value: string(hashedPassword)},
@@ -135,21 +186,5 @@ func UserRoutes(r *gin.Engine) {
 				"message": "Password updated successfully",
 			})
 		})
-
-		user.DELETE("/delete/:id", func(c *gin.Context) {
-
-			collection := db.Client.Database("todo").Collection("users")
-			res, err := collection.UpdateOne(context.TODO(), bson.D{}, bson.D{
-				{Key: "$set", Value: bson.D{
-					{Key: "deleted", Value: true},
-					{Key: "updated_at", Value: time.Now()},
-				}},
-			})
-			if err != nil {
-				panic(err)
-			}
-			c.JSON(http.StatusOK, res)
-		})
-
 	}
 }

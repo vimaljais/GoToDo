@@ -1,15 +1,32 @@
-package controllers
+package middlewares
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
-func authMiddleware() gin.HandlerFunc {
+func getSecretKey() []byte {
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	secretKey := os.Getenv("JWT_SECRET_KEY")
+	if secretKey == "" {
+		// If the secret key is not set, panic with an error message
+		panic("JWT secret key not found in environment variables")
+	}
+	return []byte(secretKey)
+}
+
+func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.GetHeader("Authorization")
 		if tokenString == "" {
@@ -26,7 +43,7 @@ func authMiddleware() gin.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("invalid token signing method")
 			}
-			return []byte("your-secret-key"), nil // replace with your actual secret key
+			return []byte(getSecretKey()), nil
 		})
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -37,10 +54,18 @@ func authMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-			// extract access token and set it in the context
-			accessToken := claims["access_token"].(string)
-			c.Set("access_token", accessToken)
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error":   "AUTH-3",
+				"message": "Invalid authorization token",
+			})
+			c.Abort()
+			return
+		}
+
+		if user_id, ok := claims["user_id"].(string); ok {
+			c.Set("user_id", user_id)
 			c.Next()
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -50,5 +75,6 @@ func authMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
 	}
 }

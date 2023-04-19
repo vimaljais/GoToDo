@@ -5,33 +5,50 @@ import (
 	"errors"
 	"fmt"
 	db "ginserver/config"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // Claims defines the JWT claims structure.
 type Claims struct {
-	Username string `json:"username"`
+	User_id string `json:"user_id"`
 	jwt.StandardClaims
 }
 
-func CreateToken(username string) (string, error) {
+func GetSecretToken() []byte {
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	secretKey := os.Getenv("JWT_SECRET_KEY")
+	if secretKey == "" {
+		// If the secret key is not set, panic with an error message
+		panic("JWT secret key not found in environment variables")
+	}
+	return []byte(secretKey)
+}
+
+func CreateToken(user_id string) (string, error) {
 	// Create JWT token
 	expirationTime := time.Now().Add(24 * time.Hour) // Token expires after 24 hours
 	claims := &Claims{
-		Username: username,
+		User_id: user_id,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte("SECRET_KEY"))
+	return token.SignedString([]byte(GetSecretToken()))
 }
 
 func VerifyToken(tokenString string) (*Claims, error) {
@@ -48,31 +65,8 @@ func VerifyToken(tokenString string) (*Claims, error) {
 	return nil, errors.New("invalid token")
 }
 
-func AuthMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Get token from header
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "MISSING_AUTH_TOKEN", "message": "Authorization token is missing."})
-			return
-		}
-
-		// Verify token
-		claims, err := VerifyToken(tokenString)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "INVALID_AUTH_TOKEN", "message": "Authorization token is invalid."})
-			return
-		}
-
-		// Set user in context
-		c.Set("username", claims.Username)
-		c.Next()
-	}
-}
-
 func AuthRoutes(r *gin.Engine) {
 	auth := r.Group("/auth")
-	auth.Use(AuthMiddleware())
 	{
 		auth.POST("/register", func(c *gin.Context) {
 			var req User
@@ -127,7 +121,7 @@ func AuthRoutes(r *gin.Engine) {
 			fmt.Println(result.InsertedID)
 
 			// Create JWT token
-			token, err := CreateToken(req.Username)
+			token, err := CreateToken(req.ID)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusInternalServerError,
 					gin.H{
@@ -175,7 +169,7 @@ func AuthRoutes(r *gin.Engine) {
 			}
 
 			// Create JWT token
-			token, err := CreateToken(existingUser.Username)
+			token, err := CreateToken(existingUser.ID)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error":   "VALIDATEERR-5",
