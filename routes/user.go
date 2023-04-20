@@ -53,34 +53,34 @@ func UserRoutes(r *gin.Engine) {
 			})
 		})
 
-		user.GET("/list", func(c *gin.Context) {
+		// user.GET("/list", func(c *gin.Context) {
 
-			var users []bson.M
+		// 	var users []bson.M
 
-			collection := db.Client.Database("todo").Collection("users")
-			cursor, err := collection.Find(context.TODO(), bson.D{})
-			err = cursor.All(context.TODO(), &users)
-			if err != nil {
-				panic(err)
-			}
-			//filter deleted
-			for i := 0; i < len(users); i++ {
-				if users[i]["deleted"] == true {
-					users = append(users[:i], users[i+1:]...)
-					i--
-				}
-			}
+		// 	collection := db.Client.Database("todo").Collection("users")
+		// 	cursor, err := collection.Find(context.TODO(), bson.D{})
+		// 	err = cursor.All(context.TODO(), &users)
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
+		// 	//filter deleted
+		// 	for i := 0; i < len(users); i++ {
+		// 		if users[i]["deleted"] == true {
+		// 			users = append(users[:i], users[i+1:]...)
+		// 			i--
+		// 		}
+		// 	}
 
-			var resUsers []ResponseUser
-			for _, user := range users {
-				var singleUser ResponseUser
-				singleUser.ID = user["id"].(string)
-				singleUser.Username = user["username"].(string)
-				resUsers = append(resUsers, singleUser)
-			}
+		// 	var resUsers []ResponseUser
+		// 	for _, user := range users {
+		// 		var singleUser ResponseUser
+		// 		singleUser.ID = user["id"].(string)
+		// 		singleUser.Username = user["username"].(string)
+		// 		resUsers = append(resUsers, singleUser)
+		// 	}
 
-			c.JSON(http.StatusOK, resUsers)
-		})
+		// 	c.JSON(http.StatusOK, resUsers)
+		// })
 
 		user.DELETE("/delete", func(c *gin.Context) {
 			// get user ID from the path parameter
@@ -136,6 +136,7 @@ func UserRoutes(r *gin.Engine) {
 			var user User
 			err := collection.FindOne(context.TODO(), bson.D{
 				{Key: "id", Value: c.GetString("user_id")},
+				{Key: "deleted", Value: false},
 			}).Decode(&user)
 
 			// Check if user exists
@@ -172,6 +173,7 @@ func UserRoutes(r *gin.Engine) {
 			}, bson.D{
 				{Key: "$set", Value: bson.D{
 					{Key: "password", Value: string(hashedPassword)},
+					{Key: "deleted", Value: false},
 				}},
 			})
 			if err != nil {

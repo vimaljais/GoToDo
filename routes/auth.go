@@ -149,6 +149,7 @@ func AuthRoutes(r *gin.Engine) {
 			var existingUser User
 			err := collection.FindOne(context.TODO(), bson.D{
 				{Key: "username", Value: req.Username},
+				{Key: "deleted", Value: false},
 			}).Decode(&existingUser)
 
 			if err != nil {
