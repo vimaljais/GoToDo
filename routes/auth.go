@@ -130,6 +130,17 @@ func AuthRoutes(r *gin.Engine) {
 				return
 			}
 
+			// Set cookie
+			cookie := &http.Cookie{
+				Name:     "todo_token",
+				Value:    token,
+				Expires:  time.Now().Add(24 * time.Hour),
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   true,
+			}
+			http.SetCookie(c.Writer, cookie)
+
 			c.JSON(http.StatusOK, gin.H{
 				"token": token,
 			})
@@ -169,15 +180,25 @@ func AuthRoutes(r *gin.Engine) {
 				return
 			}
 
-			// Create JWT token
 			token, err := CreateToken(existingUser.ID)
 			if err != nil {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-					"error":   "VALIDATEERR-5",
-					"message": "Internal server error",
-				})
+				c.AbortWithStatusJSON(http.StatusInternalServerError,
+					gin.H{
+						"error":   "VALIDATEERR-5",
+						"message": "Internal server error"})
 				return
 			}
+
+			// Set cookie
+			cookie := &http.Cookie{
+				Name:     "todo_token",
+				Value:    token,
+				Expires:  time.Now().Add(24 * time.Hour),
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   true,
+			}
+			http.SetCookie(c.Writer, cookie)
 
 			c.JSON(http.StatusOK, gin.H{
 				"token": token,

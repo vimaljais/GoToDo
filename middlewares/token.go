@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -28,8 +27,10 @@ func getSecretKey() []byte {
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" {
+
+		tokenCookie, err := c.Cookie("todo_token")
+		fmt.Print(tokenCookie)
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error":   "AUTH-1",
 				"message": "Authorization token is missing",
@@ -38,8 +39,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		tokenString = strings.ReplaceAll(tokenString, "Bearer ", "")
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenCookie, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("invalid token signing method")
 			}
